@@ -1,6 +1,7 @@
 # Direct App Store API Auth Setup
 
 This CLI uses direct App Store API requests with **only** an access token.
+`hints` endpoint calls are sent without Authorization by default to avoid bearer-based throttling.
 
 No worker handshake, signature, API key, or private token is required.
 
@@ -40,6 +41,12 @@ Verify profile:
 ./appstore search --keyword notes --storefront us --platform iphone
 ./appstore hints --term photo
 ./appstore app-details --app-id 1234567890 --storefront us --language en-GB --platform iphone
+```
+
+If you explicitly want auth on hints:
+
+```bash
+./appstore hints --term photo --with-auth --profile prod
 ```
 
 ---

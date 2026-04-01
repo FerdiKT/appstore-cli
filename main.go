@@ -71,7 +71,7 @@ Commands:
   auth remove <name>        Remove profile
 
   search                    Direct call to Apple /search endpoint
-  hints                     Direct call to Apple hints/autocomplete endpoint
+  hints                     Direct call to Apple hints/autocomplete endpoint (no auth by default)
   app-details               Direct call to Apple /apps endpoint
 
 Examples:
@@ -79,6 +79,7 @@ Examples:
   appstore auth use prod
   appstore search --keyword productivity --storefront us
   appstore hints --term photo
+  appstore hints --term photo --with-auth --profile prod
   appstore app-details --app-id 1234567890 --storefront us
 `)
 }
@@ -205,7 +206,7 @@ func runSearch(args []string) error {
 
 	path := fmt.Sprintf("/%s/search", strings.ToLower(*storefront))
 	params := map[string]string{"l": *language, "platform": *platform, "term": *keyword}
-	return callAppleAndPrint(*profileName, searchBaseURL, path, params, nil)
+	return callAppleAndPrint(*profileName, searchBaseURL, path, params, nil, true)
 }
 
 func runHints(args []string) error {
@@ -214,6 +215,7 @@ func runHints(args []string) error {
 	term := fs.String("term", "", "Autocomplete term")
 	storefrontHeader := fs.String("storefront-header", "143441-1,29 t:apps3", "x-apple-store-front header")
 	language := fs.String("language", "en-GB", "accept-language header")
+	withAuth := fs.Bool("with-auth", false, "Send Authorization header for hints requests")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -234,7 +236,7 @@ func runHints(args []string) error {
 		"x-apple-client-application": "com.apple.AppStore",
 		"accept":                     "*/*",
 	}
-	return callAppleAndPrint(*profileName, hintsBaseURL, "", params, extraHeaders)
+	return callAppleAndPrint(*profileName, hintsBaseURL, "", params, extraHeaders, *withAuth)
 }
 
 func runAppDetails(args []string) error {
@@ -253,16 +255,20 @@ func runAppDetails(args []string) error {
 
 	path := fmt.Sprintf("/%s/apps", strings.ToLower(*storefront))
 	params := map[string]string{"ids": *appID, "l": *language, "platform": *platform}
-	return callAppleAndPrint(*profileName, appDetailBaseURL, path, params, nil)
+	return callAppleAndPrint(*profileName, appDetailBaseURL, path, params, nil, true)
 }
 
-func callAppleAndPrint(profileName, baseURL, path string, params map[string]string, extraHeaders map[string]string) error {
-	profile, err := resolveProfile(profileName)
-	if err != nil {
-		return err
+func callAppleAndPrint(profileName, baseURL, path string, params map[string]string, extraHeaders map[string]string, useAuth bool) error {
+	var profile Profile
+	var err error
+	if useAuth {
+		profile, err = resolveProfile(profileName)
+		if err != nil {
+			return err
+		}
 	}
 
-	body, status, err := callAppleEndpoint(profile, baseURL, path, params, extraHeaders)
+	body, status, err := callAppleEndpoint(profile, baseURL, path, params, extraHeaders, useAuth)
 	if err != nil {
 		return err
 	}
@@ -303,7 +309,7 @@ func resolveProfile(profileName string) (Profile, error) {
 	return profile, nil
 }
 
-func callAppleEndpoint(profile Profile, baseURL, path string, params map[string]string, extraHeaders map[string]string) ([]byte, int, error) {
+func callAppleEndpoint(profile Profile, baseURL, path string, params map[string]string, extraHeaders map[string]string, useAuth bool) ([]byte, int, error) {
 	u, err := url.Parse(strings.TrimRight(baseURL, "/") + path)
 	if err != nil {
 		return nil, 0, err
@@ -318,7 +324,9 @@ func callAppleEndpoint(profile Profile, baseURL, path string, params map[string]
 	if err != nil {
 		return nil, 0, err
 	}
-	req.Header.Set("Authorization", "Bearer "+profile.AccessToken)
+	if useAuth {
+		req.Header.Set("Authorization", "Bearer "+profile.AccessToken)
+	}
 	req.Header.Set("Accept", "application/json")
 	for k, v := range extraHeaders {
 		req.Header.Set(k, v)

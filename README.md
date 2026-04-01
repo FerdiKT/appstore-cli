@@ -88,6 +88,8 @@ For full auth setup details, see [`docs/AUTH_SETUP.md`](docs/AUTH_SETUP.md).
 ./appstore app-details --app-id 1234567890 --storefront us --language en-GB --platform iphone
 ```
 
+`hints` authsuz gider. İstersen auth ile denemek için: `./appstore hints --term photo --with-auth --profile prod`
+
 ---
 
 ## 🗺️ Command Map
@@ -96,7 +98,7 @@ For full auth setup details, see [`docs/AUTH_SETUP.md`](docs/AUTH_SETUP.md).
 |---|---|---|
 | `auth` | `add`, `list`, `use`, `show`, `remove` | Access-token profile management |
 | `search` | — | Direct call to `amp-api-search-edge ... /search` |
-| `hints` | — | Direct call to iTunes hints endpoint |
+| `hints` | — | Direct call to iTunes hints endpoint (without Authorization by default) |
 | `app-details` | — | Direct call to `amp-api-edge ... /apps` |
 
 ---
