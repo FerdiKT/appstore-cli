@@ -100,6 +100,23 @@ For full auth setup details, see [`docs/AUTH_SETUP.md`](docs/AUTH_SETUP.md).
 | `search` | — | Direct call to `amp-api-search-edge ... /search` |
 | `hints` | — | Direct call to iTunes hints endpoint (without Authorization by default) |
 | `app-details` | — | Direct call to `amp-api-edge ... /apps` |
+| `skill` | `install`, `path`, `doctor`, `show` | Install and verify bundled skill for Codex |
+
+### Skill Commands
+
+```bash
+# Install skill to ~/.codex/skills/appstore-cli
+./appstore skill install
+
+# Print bundled/installed paths
+./appstore skill path
+
+# Validate skill availability
+./appstore skill doctor
+
+# Show bundled SKILL.md
+./appstore skill show
+```
 
 ---
 

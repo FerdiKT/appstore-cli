@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
@@ -55,6 +56,8 @@ func run(args []string) error {
 		return runHints(args[1:])
 	case "app-details":
 		return runAppDetails(args[1:])
+	case "skill":
+		return runSkill(args[1:])
 	default:
 		return fmt.Errorf("unknown command: %s", args[0])
 	}
@@ -73,6 +76,10 @@ Commands:
   search                    Direct call to Apple /search endpoint
   hints                     Direct call to Apple hints/autocomplete endpoint (no auth by default)
   app-details               Direct call to Apple /apps endpoint
+  skill install             Install bundled appstore skill into Codex skills dir
+  skill path                Print bundled and installed skill paths
+  skill doctor              Check bundled/installed skill availability
+  skill show                Print bundled skill content
 
 Examples:
   appstore auth add prod --access-token <token>
@@ -81,7 +88,156 @@ Examples:
   appstore hints --term photo
   appstore hints --term photo --with-auth --profile prod
   appstore app-details --app-id 1234567890 --storefront us
+  appstore skill install
+  appstore skill doctor
 `)
+}
+
+func runSkill(args []string) error {
+	if len(args) == 0 {
+		return errors.New("skill requires a subcommand: install|path|doctor|show")
+	}
+
+	switch args[0] {
+	case "install":
+		return installSkill()
+	case "path":
+		return printSkillPaths()
+	case "doctor":
+		return skillDoctor()
+	case "show":
+		return showBundledSkill()
+	default:
+		return fmt.Errorf("unknown skill subcommand: %s", args[0])
+	}
+}
+
+func installSkill() error {
+	src, err := bundledSkillPath()
+	if err != nil {
+		return err
+	}
+	if _, err := os.Stat(src); err != nil {
+		return fmt.Errorf("bundled skill not found: %w", err)
+	}
+
+	dstDir, err := installedSkillDir()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+		return err
+	}
+
+	dst := filepath.Join(dstDir, "SKILL.md")
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		return err
+	}
+
+	fmt.Printf("installed skill: %s\n", dst)
+	return nil
+}
+
+func printSkillPaths() error {
+	src, err := bundledSkillPath()
+	if err != nil {
+		return err
+	}
+	dstDir, err := installedSkillDir()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("bundled:   %s\n", src)
+	fmt.Printf("installed: %s\n", filepath.Join(dstDir, "SKILL.md"))
+	return nil
+}
+
+func skillDoctor() error {
+	src, err := bundledSkillPath()
+	if err != nil {
+		return err
+	}
+	dstDir, err := installedSkillDir()
+	if err != nil {
+		return err
+	}
+	dst := filepath.Join(dstDir, "SKILL.md")
+
+	check := func(path string) string {
+		_, err := os.Stat(path)
+		if err == nil {
+			return "ok"
+		}
+		if errors.Is(err, fs.ErrNotExist) {
+			return "missing"
+		}
+		return "error"
+	}
+
+	b := check(src)
+	i := check(dst)
+	fmt.Printf("bundled_skill: %s (%s)\n", b, src)
+	fmt.Printf("installed_skill: %s (%s)\n", i, dst)
+	if b != "ok" {
+		return errors.New("bundled skill is not available")
+	}
+	if i != "ok" {
+		return errors.New("installed skill is not available; run 'appstore skill install'")
+	}
+	return nil
+}
+
+func showBundledSkill() error {
+	src, err := bundledSkillPath()
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	fmt.Print(string(data))
+	return nil
+}
+
+func bundledSkillPath() (string, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	exeDir := filepath.Dir(exe)
+	paths := []string{
+		filepath.Join(exeDir, "skills", "appstore-cli", "SKILL.md"),
+		filepath.Join(exeDir, "..", "skills", "appstore-cli", "SKILL.md"),
+		filepath.Join(exeDir, "..", "..", "skills", "appstore-cli", "SKILL.md"),
+		filepath.Join("skills", "appstore-cli", "SKILL.md"),
+	}
+	for _, p := range paths {
+		if _, err := os.Stat(p); err == nil {
+			abs, err := filepath.Abs(p)
+			if err == nil {
+				return abs, nil
+			}
+			return p, nil
+		}
+	}
+	return "", errors.New("could not resolve bundled skill path")
+}
+
+func installedSkillDir() (string, error) {
+	codexHome := strings.TrimSpace(os.Getenv("CODEX_HOME"))
+	if codexHome == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		codexHome = filepath.Join(home, ".codex")
+	}
+	return filepath.Join(codexHome, "skills", "appstore-cli"), nil
 }
 
 func runAuth(args []string) error {
