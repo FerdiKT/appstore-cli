@@ -19,6 +19,7 @@ const (
 	searchBaseURL    = "https://amp-api-search-edge.apps.apple.com/v1/catalog"
 	appDetailBaseURL = "https://amp-api-edge.apps.apple.com/v1/catalog"
 	hintsBaseURL     = "https://search.itunes.apple.com/WebObjects/MZSearchHints.woa/wa/hints"
+	skillRawURL      = "https://raw.githubusercontent.com/ferdikt/appstore-cli/main/skills/appstore-cli/SKILL.md"
 )
 
 type Profile struct {
@@ -113,14 +114,6 @@ func runSkill(args []string) error {
 }
 
 func installSkill() error {
-	src, err := bundledSkillPath()
-	if err != nil {
-		return err
-	}
-	if _, err := os.Stat(src); err != nil {
-		return fmt.Errorf("bundled skill not found: %w", err)
-	}
-
 	dstDir, err := installedSkillDir()
 	if err != nil {
 		return err
@@ -130,7 +123,7 @@ func installSkill() error {
 	}
 
 	dst := filepath.Join(dstDir, "SKILL.md")
-	data, err := os.ReadFile(src)
+	data, err := resolveSkillContent()
 	if err != nil {
 		return err
 	}
@@ -159,7 +152,7 @@ func printSkillPaths() error {
 func skillDoctor() error {
 	src, err := bundledSkillPath()
 	if err != nil {
-		return err
+		src = "(not bundled in this build)"
 	}
 	dstDir, err := installedSkillDir()
 	if err != nil {
@@ -178,30 +171,48 @@ func skillDoctor() error {
 		return "error"
 	}
 
-	b := check(src)
+	b := "missing"
+	if !strings.HasPrefix(src, "(") {
+		b = check(src)
+	}
 	i := check(dst)
 	fmt.Printf("bundled_skill: %s (%s)\n", b, src)
 	fmt.Printf("installed_skill: %s (%s)\n", i, dst)
-	if b != "ok" {
-		return errors.New("bundled skill is not available")
-	}
-	if i != "ok" {
+	if b != "ok" && i != "ok" {
 		return errors.New("installed skill is not available; run 'appstore skill install'")
 	}
 	return nil
 }
 
 func showBundledSkill() error {
-	src, err := bundledSkillPath()
-	if err != nil {
-		return err
-	}
-	data, err := os.ReadFile(src)
+	data, err := resolveSkillContent()
 	if err != nil {
 		return err
 	}
 	fmt.Print(string(data))
 	return nil
+}
+
+func resolveSkillContent() ([]byte, error) {
+	if src, err := bundledSkillPath(); err == nil {
+		if data, readErr := os.ReadFile(src); readErr == nil {
+			return data, nil
+		}
+	}
+
+	resp, err := http.Get(skillRawURL)
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch remote skill: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("could not fetch remote skill: status %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	return body, nil
 }
 
 func bundledSkillPath() (string, error) {
