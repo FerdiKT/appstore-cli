@@ -38,6 +38,6 @@ jobs:
         with:
           formula-name: appstore
           homebrew-tap: FerdiKT/homebrew-tap
-          download-url: https://github.com/FerdiKT/appstore-cli/releases/download/${{ github.ref_name }}/appstore_${{ steps.version.outputs.VERSION }}_darwin_arm64.tar.gz
+          download-url: https://github.com/ferdikt/appstore-cli/releases/download/${{ github.ref_name }}/appstore_${{ steps.version.outputs.VERSION }}_darwin_arm64.tar.gz
         env:
           COMMITTER_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
